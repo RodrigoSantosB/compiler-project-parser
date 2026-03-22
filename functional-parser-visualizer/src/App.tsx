@@ -84,33 +84,32 @@ const applyEvents = (events: ParserEvent[], fallbackFn: string): ViewState => {
 };
 
 const nodeClass = (node: ParserNodeSnapshot): string => {
-  const base =
-    "rounded-xl border px-3 py-2 text-xs shadow-lg transition-all duration-300 min-w-[170px] backdrop-blur-sm";
+  const base = "rounded-lg border px-3 py-2 text-xs transition-all duration-300 w-full box-border text-black";
 
   if (node.status === "ghost") {
-    return `${base} border-danger/40 bg-danger/10 text-slate-300 opacity-30`;
+    return `${base} border-danger/40 bg-red-100 opacity-30`;
   }
   if (node.status === "failure") {
-    return `${base} border-danger bg-danger/25 text-danger animate-pulse`;
+    return `${base} border-danger bg-red-200 animate-pulse`;
   }
   if (node.status === "complete") {
-    return `${base} border-success bg-success/20 text-emerald-100 shadow-[0_0_25px_rgba(34,197,94,.55)]`;
+    return `${base} border-success bg-green-200`;
   }
   if (node.status === "success") {
     return node.kind === "terminal"
-      ? `${base} border-terminal bg-cyan-500/15 text-cyan-100`
-      : `${base} border-nonterminal bg-amber-500/15 text-amber-100`;
+      ? `${base} border-terminal bg-cyan-200`
+      : `${base} border-nonterminal bg-amber-200`;
   }
 
   return node.kind === "terminal"
-    ? `${base} border-cyan-300/50 bg-cyan-700/10 text-cyan-50`
-    : `${base} border-amber-300/50 bg-amber-700/10 text-amber-50`;
+    ? `${base} border-cyan-300 bg-cyan-100`
+    : `${base} border-amber-300 bg-amber-100`;
 };
 
 const layoutForReactFlow = (view: ViewState): { nodes: Node[]; edges: Edge[] } => {
   const items = view.order
     .map((id) => view.nodes[id])
-    .filter((node): node is ParserNodeSnapshot => Boolean(node && node.status !== "ghost"));
+    .filter((node): node is ParserNodeSnapshot => Boolean(node));
 
   const depthMemo = new Map<string, number>();
   const depthOf = (id: string): number => {
@@ -137,12 +136,21 @@ const layoutForReactFlow = (view: ViewState): { nodes: Node[]; edges: Edge[] } =
       data: {
         label: (
           <div className={nodeClass(node)}>
-            <p className="font-medium">{node.label}</p>
-            <p className="mt-1 text-[10px] text-slate-300">
-              sobra: <span className="text-violet-200">"{node.remaining}"</span>
+            <p className="font-medium text-black">{node.label}</p>
+            <p className="mt-1 text-[10px] text-black">
+              sobra: <span className="text-black">"{node.remaining}"</span>
             </p>
           </div>
         )
+      },
+      style: {
+        background: "#ffffff",
+        border: "2px solid #111111",
+        borderRadius: 14,
+        padding: "8px",
+        width: 238,
+        color: "#000000",
+        boxSizing: "border-box"
       },
       position: {
         x: 120 + node.branch * 460 + depth * 320,
@@ -157,14 +165,8 @@ const layoutForReactFlow = (view: ViewState): { nodes: Node[]; edges: Edge[] } =
   const rfEdges: Edge[] = items
     .filter((node) => node.parentId && visibleIds.has(node.parentId))
     .map((node) => {
-      const stroke =
-        node.status === "failure"
-          ? "#ef4444"
-          : node.status === "complete"
-            ? "#22c55e"
-            : node.kind === "terminal"
-              ? "#22d3ee"
-              : "#f8fafc";
+      const isDeadBranch = node.status === "failure" || node.status === "ghost";
+      const stroke = isDeadBranch ? "#b91c1c" : "#1e3a8a";
 
       return {
         id: `e-${node.parentId}-${node.id}`,
@@ -174,7 +176,8 @@ const layoutForReactFlow = (view: ViewState): { nodes: Node[]; edges: Edge[] } =
         style: {
           stroke,
           strokeWidth: 2.6,
-          opacity: 1
+          opacity: node.status === "ghost" ? 0.75 : 1,
+          strokeDasharray: isDeadBranch ? "7 4" : undefined
         },
         markerEnd: {
           type: MarkerType.ArrowClosed,
