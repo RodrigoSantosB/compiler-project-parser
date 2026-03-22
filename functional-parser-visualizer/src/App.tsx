@@ -10,7 +10,7 @@ import {
   ParserNodeSnapshot,
   codeByFunction,
   formatRose,
-  runDemo
+  runDemoWithArgs
 } from "./parser/visualParser";
 
 type ViewState = {
@@ -23,7 +23,7 @@ const INITIAL_INPUT = "((()))";
 const INITIAL_DEMO: DemoKind = "parens";
 
 const initialFnForDemo = (demo: DemoKind): string => {
-  if (demo === "symbolA") return "symbol";
+  if (demo === "symbol") return "symbol";
   if (demo === "manyA") return "many";
   return "parens";
 };
@@ -194,6 +194,7 @@ const layoutForReactFlow = (view: ViewState): { nodes: Node[]; edges: Edge[] } =
 function App() {
   const [selectedDemo, setSelectedDemo] = useState<DemoKind>(INITIAL_DEMO);
   const [input, setInput] = useState(INITIAL_INPUT);
+  const [symbolTarget, setSymbolTarget] = useState("a");
   const [speedMs, setSpeedMs] = useState(500);
   const [step, setStep] = useState(0);
 
@@ -201,7 +202,10 @@ function App() {
     () => demoOptions.find((option) => option.id === selectedDemo) ?? demoOptions[0],
     [selectedDemo]
   );
-  const demo = useMemo(() => runDemo(selectedDemo, input), [selectedDemo, input]);
+  const demo = useMemo(
+    () => runDemoWithArgs(selectedDemo, input, { symbolTarget }),
+    [selectedDemo, input, symbolTarget]
+  );
 
   useEffect(() => {
     setStep(0);
@@ -228,7 +232,7 @@ function App() {
             <code>&lt;|&gt;</code> e <code>&lt;@</code> em tempo real.
           </p>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-[260px_1fr_220px_180px]">
+          <div className="mt-4 grid gap-4 md:grid-cols-[260px_1fr_120px_220px_180px]">
             <label className="flex flex-col gap-2">
               <span className="text-sm text-slate-300">Funcao / Demo</span>
               <select
@@ -258,6 +262,17 @@ function App() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={activeDemo.placeholder}
+              />
+            </label>
+
+            <label className="flex flex-col gap-2">
+              <span className="text-sm text-slate-300">Simbolo</span>
+              <input
+                className="rounded-lg border border-slate-600 bg-black/40 px-3 py-2 text-sm outline-none ring-violet-500/50 focus:ring"
+                value={symbolTarget}
+                onChange={(e) => setSymbolTarget(e.target.value.slice(0, 1))}
+                placeholder="a"
+                disabled={selectedDemo !== "symbol"}
               />
             </label>
 

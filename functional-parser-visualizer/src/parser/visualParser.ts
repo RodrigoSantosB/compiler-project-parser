@@ -37,7 +37,7 @@ export type DemoRun = {
   outcomes: Outcome[];
 };
 
-export type DemoKind = "parens" | "symbolA" | "manyA";
+export type DemoKind = "parens" | "symbol" | "manyA";
 
 export type DemoOption = {
   id: DemoKind;
@@ -56,9 +56,9 @@ export const demoOptions: DemoOption[] = [
     placeholder: "Ex: ((()))"
   },
   {
-    id: "symbolA",
-    label: "symbol 'a'",
-    description: "Parser terminal simples para um simbolo unico",
+    id: "symbol",
+    label: "symbol x",
+    description: "Parser terminal generico para qualquer simbolo escolhido",
     defaultInput: "abc",
     placeholder: "Ex: abc"
   },
@@ -306,10 +306,11 @@ export const runParensDemo = (rawInput: string): DemoRun => {
   return { events: state.events, outcomes };
 };
 
-const runSymbolDemo = (rawInput: string): DemoRun => {
+const runSymbolDemo = (rawInput: string, targetSymbol: string): DemoRun => {
   const input = rawInput;
   const chars = toChars(input);
-  const parser = symbol("a");
+  const expected = targetSymbol[0] ?? "a";
+  const parser = symbol(expected);
 
   const outcomes = uniqueOutcomes(
     parser(chars).map(([remaining, value]) => ({
@@ -323,19 +324,19 @@ const runSymbolDemo = (rawInput: string): DemoRun => {
   focus(state, "symbol");
 
   const rootId = addNode(state, {
-    label: "symbol 'a' (root)",
+    label: `symbol '${expected}' (root)`,
     kind: "nonterminal",
     remaining: input
   });
 
   const symbolId = addNode(state, {
     parentId: rootId,
-    label: "symbol 'a'",
+    label: `symbol '${expected}'`,
     kind: "terminal",
     remaining: input
   });
 
-  if (chars[0] === "a") {
+  if (chars[0] === expected) {
     state.events.push({ type: "success", id: symbolId, remaining: remainingToString(chars, 1) });
     state.events.push({ type: "success", id: rootId, remaining: remainingToString(chars, 1) });
     if (chars.length === 1) {
@@ -430,13 +431,20 @@ const runManyADemo = (rawInput: string): DemoRun => {
 };
 
 export const runDemo = (kind: DemoKind, input: string): DemoRun => {
-  if (kind === "symbolA") {
-    return runSymbolDemo(input);
+  if (kind === "symbol") {
+    return runSymbolDemo(input, "a");
   }
   if (kind === "manyA") {
     return runManyADemo(input);
   }
   return runParensDemo(input);
+};
+
+export const runDemoWithArgs = (kind: DemoKind, input: string, args?: { symbolTarget?: string }): DemoRun => {
+  if (kind === "symbol") {
+    return runSymbolDemo(input, args?.symbolTarget ?? "a");
+  }
+  return runDemo(kind, input);
 };
 
 export const formatRose = (tree: RoseTree[], depth = 0): string => {
