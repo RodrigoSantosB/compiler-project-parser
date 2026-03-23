@@ -174,8 +174,17 @@ const traceManyGroups = (
   const groupResult = traceGroup(chars, index, state, tryGroupNode);
 
   if (!groupResult.ok) {
+    focus(state, "failP");
+    const failNode = addNode(state, {
+      parentId: choiceNode,
+      label: "fail []",
+      kind: "nonterminal",
+      remaining: remainingToString(chars, index)
+    });
     state.events.push({ type: "failure", id: tryGroupNode });
     state.events.push({ type: "ghost", id: tryGroupNode });
+    state.events.push({ type: "failure", id: failNode });
+    state.events.push({ type: "ghost", id: failNode });
 
     const epsNode = addNode(state, {
       parentId: choiceNode,
@@ -263,6 +272,7 @@ const traceGroup = (
 export const codeByFunction: Record<string, string> = {
   symbol: `symbol a (x:xs) = if a == x then [(xs, x)] else []`,
   many: `many p = (some p) <|> succeed []`,
+  failP: `failP xs = []`,
   chainl: `p \`chainl\` op = p <*> many (op <*> p) <@ foldl apply`,
   "<*>": `pf <*> pa = \\xs -> [ (ys, f a) | (zs, f) <- pf xs, (ys, a) <- pa zs ]`,
   "<|>": `p <|> q = \\xs -> p xs ++ q xs`,
@@ -343,6 +353,15 @@ const runSymbolDemo = (rawInput: string, targetSymbol: string): DemoRun => {
       state.events.push({ type: "complete", id: rootId });
     }
   } else {
+    focus(state, "failP");
+    const failId = addNode(state, {
+      parentId: rootId,
+      label: "fail []",
+      kind: "nonterminal",
+      remaining: input
+    });
+    state.events.push({ type: "failure", id: failId });
+    state.events.push({ type: "ghost", id: failId });
     state.events.push({ type: "failure", id: symbolId });
     state.events.push({ type: "ghost", id: symbolId });
     state.events.push({ type: "failure", id: rootId });
@@ -410,8 +429,17 @@ const runManyADemo = (rawInput: string): DemoRun => {
     kind: "terminal",
     remaining: remainingToString(chars, index)
   });
+  focus(state, "failP");
+  const failPNode = addNode(state, {
+    parentId: finalChoice,
+    label: "fail []",
+    kind: "nonterminal",
+    remaining: remainingToString(chars, index)
+  });
   state.events.push({ type: "failure", id: failNode });
   state.events.push({ type: "ghost", id: failNode });
+  state.events.push({ type: "failure", id: failPNode });
+  state.events.push({ type: "ghost", id: failPNode });
 
   const stopNode = addNode(state, {
     parentId: finalChoice,

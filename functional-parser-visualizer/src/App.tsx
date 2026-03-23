@@ -28,6 +28,35 @@ const initialFnForDemo = (demo: DemoKind): string => {
   return "parens";
 };
 
+const normalizeInputForDemo = (demo: DemoKind, raw: string): string =>
+  demo === "parens" ? raw.replace(/\s+/g, "") : raw;
+
+const consumptionPointerView = (fullInput: string, remaining: string): JSX.Element => {
+  const pointer = Math.max(0, Math.min(fullInput.length, fullInput.length - remaining.length));
+  const chars = fullInput.length > 0 ? fullInput.split("") : [" "];
+  const slots = chars.length + 1;
+
+  return (
+    <span className="inline-flex flex-col items-start font-mono leading-tight">
+      <span className="flex">
+        {Array.from({ length: slots }).map((_, i) => (
+          <span key={`pointer-${i}`} className="inline-block w-[0.62rem] text-center">
+            {i === pointer ? "●" : " "}
+          </span>
+        ))}
+      </span>
+      <span className="flex">
+        {chars.map((ch, i) => (
+          <span key={`char-${i}`} className="inline-block w-[0.62rem] text-center">
+            {ch}
+          </span>
+        ))}
+        <span className="inline-block w-[0.62rem] text-center"> </span>
+      </span>
+    </span>
+  );
+};
+
 const applyEvents = (events: ParserEvent[], fallbackFn: string): ViewState => {
   const state: ViewState = {
     nodes: {},
@@ -83,17 +112,18 @@ const applyEvents = (events: ParserEvent[], fallbackFn: string): ViewState => {
   return state;
 };
 
-const nodeClass = (node: ParserNodeSnapshot): string => {
+const nodeClass = (node: ParserNodeSnapshot, isWinner: boolean): string => {
   const base = "rounded-lg border px-3 py-2 text-xs transition-all duration-300 w-full box-border text-black";
+
+  if (isWinner && node.status !== "failure" && node.status !== "ghost") {
+    return `${base} border-green-700 bg-green-200 shadow-[0_0_0_2px_rgba(22,163,74,.45)]`;
+  }
 
   if (node.status === "ghost") {
     return `${base} border-danger/40 bg-red-100 opacity-30`;
   }
   if (node.status === "failure") {
     return `${base} border-danger bg-red-200 animate-pulse`;
-  }
-  if (node.status === "complete") {
-    return `${base} border-success bg-green-200`;
   }
   if (node.status === "success") {
     return node.kind === "terminal"
@@ -106,7 +136,7 @@ const nodeClass = (node: ParserNodeSnapshot): string => {
     : `${base} border-amber-300 bg-amber-100`;
 };
 
-const layoutForReactFlow = (view: ViewState): { nodes: Node[]; edges: Edge[] } => {
+const layoutForReactFlow = (view: ViewState, normalizedInput: string): { nodes: Node[]; edges: Edge[] } => {
   const items = view.order
     .map((id) => view.nodes[id])
     .filter((node): node is ParserNodeSnapshot => Boolean(node));
@@ -125,6 +155,18 @@ const layoutForReactFlow = (view: ViewState): { nodes: Node[]; edges: Edge[] } =
   };
 
   const verticalMap = new Map<string, number>();
+  const winnerIds = new Set<string>();
+  for (const id of view.order) {
+    const node = view.nodes[id];
+    if (!node || (node.status !== "complete" && node.status !== "success") || node.remaining !== "") continue;
+    let current: string | undefined = node.id;
+    while (current) {
+      if (winnerIds.has(current)) break;
+      winnerIds.add(current);
+      current = view.nodes[current]?.parentId;
+    }
+  }
+
   const rfNodes: Node[] = items.map((node) => {
     const depth = depthOf(node.id);
     const key = `${node.branch}-${depth}`;
@@ -135,10 +177,14 @@ const layoutForReactFlow = (view: ViewState): { nodes: Node[]; edges: Edge[] } =
       id: node.id,
       data: {
         label: (
-          <div className={nodeClass(node)}>
+          <div className={nodeClass(node, winnerIds.has(node.id))}>
             <p className="font-medium text-black">{node.label}</p>
             <p className="mt-1 text-[10px] text-black">
               sobra: <span className="text-black">"{node.remaining}"</span>
+            </p>
+            <p className="mt-1 text-[10px] text-black">
+              consumo:{" "}
+              {consumptionPointerView(normalizedInput, node.remaining)}
             </p>
           </div>
         )
@@ -166,7 +212,8 @@ const layoutForReactFlow = (view: ViewState): { nodes: Node[]; edges: Edge[] } =
     .filter((node) => node.parentId && visibleIds.has(node.parentId))
     .map((node) => {
       const isDeadBranch = node.status === "failure" || node.status === "ghost";
-      const stroke = isDeadBranch ? "#b91c1c" : "#1e3a8a";
+      const isWinnerEdge = winnerIds.has(node.id) && node.status !== "failure" && node.status !== "ghost";
+      const stroke = isDeadBranch ? "#b91c1c" : isWinnerEdge ? "#15803d" : "#1e3a8a";
 
       return {
         id: `e-${node.parentId}-${node.id}`,
@@ -202,6 +249,7 @@ function App() {
     () => demoOptions.find((option) => option.id === selectedDemo) ?? demoOptions[0],
     [selectedDemo]
   );
+  const normalizedInput = useMemo(() => normalizeInputForDemo(selectedDemo, input), [selectedDemo, input]);
   const demo = useMemo(
     () => runDemoWithArgs(selectedDemo, input, { symbolTarget }),
     [selectedDemo, input, symbolTarget]
@@ -219,7 +267,7 @@ function App() {
 
   const visibleEvents = useMemo(() => demo.events.slice(0, step), [demo.events, step]);
   const view = useMemo(() => applyEvents(visibleEvents, initialFnForDemo(selectedDemo)), [visibleEvents, selectedDemo]);
-  const graph = useMemo(() => layoutForReactFlow(view), [view]);
+  const graph = useMemo(() => layoutForReactFlow(view, normalizedInput), [view, normalizedInput]);
   const currentCode = codeByFunction[view.currentFn] ?? codeByFunction.parens;
 
   return (
