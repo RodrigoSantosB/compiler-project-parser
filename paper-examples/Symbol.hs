@@ -1,4 +1,6 @@
 -- 'symbol' é o tipo da entrada (ex: Char) e 'result' o tipo do retorno (ex: Int)
+module Symbol (Parser, symbol) where
+
 type Parser symbol result = [symbol] -> [([symbol], result)] -- [cite: 77]
 
 

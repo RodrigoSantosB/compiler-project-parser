@@ -1,7 +1,5 @@
 type Parser symbol result = [symbol] -> [([symbol], result)] 
 
-
-
 -- Aways succeeds without consuming input, returning a fixed value 'v'
 succeed :: r -> Parser s r
 succeed v xs = [(xs, v)] 
