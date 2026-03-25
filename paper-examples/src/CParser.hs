@@ -29,6 +29,12 @@ readSrc _ =  readFile "./src/toy.c" >>= \content ->
 		    return $ parse (many letter) "./src/toy.c" content
 
 data GenTokenParser = {
+	commentStart = "/*"
+	commentEnd = "*/"
+	commentLine = "//"
+	identStart = letter <|>'_' -- identifier can start with _
+	identLetter = letter <|> '_' -- identifier can end with _
+	opStart     = oneOf "+-*/%=&|<>!"
 
 }
 
