@@ -90,15 +90,21 @@ parseFile = do
                 else show exprs
 
 parseSrc :: FilePath -> IO (Either Error.ParseError [Expr])
-parseSrc _ =  readFile "./src/toy.c" >>= \content ->
+parseSrc filepath =  readFile filepath >>= \content ->
 		    return $ Prim.parse (parseCExprs) "./src/toy.c" content
 
+-- this is the same as Token.naturalOrFloat >>= \read -> return (Number (show read))
 parseNum :: ParsecT String () Identity Expr
 parseNum =  Number . show <$> Token.naturalOrFloat clexer
 
--- this is the same as Token.naturalOrFloat >>= \read -> return (Number (show read))
+parseVar :: Parser Expr
+parseVar = Var . show <$> Token.identifier clexer
+
+parseCExpr :: ParsecT String () Identity Expr
+parseCExpr = parseNum <|> parseVar
+
 parseCExprs :: ParsecT String () Identity [Expr]
-parseCExprs = Prim.many parseNum
+parseCExprs = Prim.many parseCExpr
 
 ctokens :: Token.LanguageDef ()
 ctokens = Token.LanguageDef {
