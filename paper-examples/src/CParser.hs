@@ -35,7 +35,7 @@ import qualified Text.Parsec.Expr as Expr
 
 readSrc :: FilePath -> IO (Either Error.ParseError String)
 readSrc _ =  readFile "./src/toy.c" >>= \content ->
-		    return $ Prim.parse (Prim.many Char.letter) "./src/toy.c" content
+		    return $ Prim.parse (Token.identifier clexer) "./src/toy.c" content
 
 ctokens :: Token.LanguageDef ()
 ctokens = Token.LanguageDef {
@@ -52,7 +52,7 @@ ctokens = Token.LanguageDef {
         "do", "double", "else", "enum", "extern", "float", "for",
         "goto", "if", "int", "long", "register", "return", "short",
         "signed", "sizeof", "static", "struct", "switch", "typedef",
-        "union", "unsigned", "void", "volatile", "while"
+        "union", "unsigned", "void", "volatile", "while", "int"
         ],
     Token.reservedOpNames = [              
         "+", "-", "*", "/", "%", "=", "==", "!=", "<", ">", "<=", ">=",
