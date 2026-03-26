@@ -11,6 +11,14 @@ import Prelude (readFile, Eq, Either)
 import Text.Parsec.String (Parser, parseFromFile)
 import Text.Parsec (ParseError, letter, parse, many)
 
+import qualified Text.Parsec.Token as Token
+import qualified Text.Parsec.Char as Char
+import qualified Text.Parsec.Combinator as Combinator
+import qualified Text.Parsec.Error as Error
+import qualified Text.Parsec.Prim as Prim
+import qualified Text.Parsec.Pos as Pos
+import qualified Text.Parsec.Expr as Expr
+
 -- we need to adapt our type to Parsec's one
 
 -- First we need to provide src code that's the entry point
@@ -28,14 +36,13 @@ readSrc :: FilePath -> IO (Either ParseError String)
 readSrc _ =  readFile "./src/toy.c" >>= \content ->
 		    return $ parse (many letter) "./src/toy.c" content
 
-data GenTokenParser = {
-	commentStart = "/*"
-	commentEnd = "*/"
-	commentLine = "//"
-	identStart = letter <|>'_' -- identifier can start with _
-	identLetter = letter <|> '_' -- identifier can end with _
-	opStart     = oneOf "+-*/%=&|<>!"
-
+CLang = Token.LanguageDef {
+	Token.commentStart = "/*",
+	Token.commentEnd = "*/",
+	Token.commentLine = "//",
+	Token.identStart = letter <|>'_', -- identifier can start with _,
+	Token.identLetter = letter <|> '_', -- identifier can end with _,
+	Token.opStart     = oneOf "+-*/%=&|<>!"
 }
 
 readString :: Either ParseError Identifier
