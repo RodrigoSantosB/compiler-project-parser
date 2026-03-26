@@ -1,6 +1,6 @@
 module CParser (readSrc) where
 
-import Prelude (IO, FilePath, String, (>>=), return, print, putStrLn, snd, ($))
+import Prelude (IO, FilePath, String, (>>=), return, print, putStrLn, snd, ($), (>>))
 
 import Prelude (readFile, Eq, Either, Bool(True, False))
 
@@ -35,7 +35,7 @@ import qualified Text.Parsec.Expr as Expr
 
 readSrc :: FilePath -> IO (Either Error.ParseError String)
 readSrc _ =  readFile "./src/toy.c" >>= \content ->
-		    return $ Prim.parse (Token.identifier clexer) "./src/toy.c" content
+		    return $ Prim.parse (Token.reserved clexer "int" >> return "int") "./src/toy.c" content
 
 ctokens :: Token.LanguageDef ()
 ctokens = Token.LanguageDef {
