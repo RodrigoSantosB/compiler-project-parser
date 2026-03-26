@@ -7,7 +7,7 @@ import Data.Maybe (catMaybes)
 
 import Text.Parsec.String (Parser, parseFromFile)
 import Text.Parsec ((<|>),ParsecT)
-import Control.Applicative ((<*>),(<*))
+import Control.Applicative ((<*>),(<*),(<$),(*>),optional)
 
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Token as Token
@@ -35,7 +35,7 @@ data Expr
     = Number String                    
     | Var String                       
     | Assign Expr Expr               
-    | Decl String Type (Maybe Expr)    
+    | Decl Type Expr (Maybe Expr)    
     | Function String Type [Parameter] Block  
     | Call String [Expr]               
     | BinaryOp Op Expr Expr            
@@ -66,6 +66,7 @@ data Type
     | IntType
     | FloatType
     | DoubleType
+    | LongType
     | VoidType
     | PtrType Type        
     | ArrayType Type Int   
@@ -103,14 +104,29 @@ parseNum =  Token.naturalOrFloat clexer >>= \read ->
 parseVar :: Parser Expr
 parseVar = Var <$> Token.identifier clexer
 
+parseType :: Parser Type
+parseType = (IntType <$ Token.reserved clexer "int")
+	    <|> (FloatType <$ Token.reserved clexer "float")
+	    <|> (DoubleType <$ Token.reserved clexer "double")
+	    <|> (LongType <$ Token.reserved clexer "long")
+	    <|> (VoidType <$ Token.reserved clexer "void")
+
+parseDecl :: Parser Expr
+parseDecl = Decl
+            <$> parseType                
+            <*> parseVar                
+            <*> optional (Token.reservedOp clexer "=" *> parseCExpr)  -- init
+            <* Token.semi clexer
+
 parseAssign :: Parser Expr
-parseAssign = Assign  <$> 
-	      parseVar <* Token.reservedOp
-	      clexer "=" <*>
-	      parseNum <* Token.semi clexer
+parseAssign = Assign
+              <$> parseVar
+              <* Token.reservedOp clexer "=" 
+	      <*> parseNum
+	      <* Token.semi clexer
 
 parseCExpr :: ParsecT String () Identity Expr
-parseCExpr =  parseAssign <|> parseNum
+parseCExpr =  parseAssign <|> parseNum <|> parseDecl
 
 parseCExprs :: ParsecT String () Identity [Expr]
 parseCExprs = Prim.many parseCExpr
