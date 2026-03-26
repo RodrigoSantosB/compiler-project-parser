@@ -3,9 +3,11 @@ import ReactFlow, { Background, Controls, Edge, MarkerType, Node, Position } fro
 import "reactflow/dist/style.css";
 
 import { CodePanel } from "./components/CodePanel";
+import { HaskellSourcePanel } from "./components/HaskellSourcePanel";
 import {
   DemoKind,
   demoOptions,
+  haskellSourcesByDemo,
   ParserEvent,
   ParserNodeSnapshot,
   codeByFunction,
@@ -24,12 +26,15 @@ const INITIAL_DEMO: DemoKind = "parens";
 
 const initialFnForDemo = (demo: DemoKind): string => {
   if (demo === "symbol") return "symbol";
+  if (demo === "cparserTest") return "test";
+  if (demo === "parserSomeFunc" || demo === "cparserSomeFunc") return "someFunc";
+  if (demo === "expr") return "expr";
   if (demo === "manyA") return "many";
   return "parens";
 };
 
 const normalizeInputForDemo = (demo: DemoKind, raw: string): string =>
-  demo === "parens" ? raw.replace(/\s+/g, "") : raw;
+  demo === "parens" || demo === "expr" ? raw.replace(/\s+/g, "") : raw;
 
 const consumptionPointerView = (fullInput: string, remaining: string): JSX.Element => {
   const pointer = Math.max(0, Math.min(fullInput.length, fullInput.length - remaining.length));
@@ -269,6 +274,7 @@ function App() {
   const view = useMemo(() => applyEvents(visibleEvents, initialFnForDemo(selectedDemo)), [visibleEvents, selectedDemo]);
   const graph = useMemo(() => layoutForReactFlow(view, normalizedInput), [view, normalizedInput]);
   const currentCode = codeByFunction[view.currentFn] ?? codeByFunction.parens;
+  const haskellPanelItems = useMemo(() => haskellSourcesByDemo[selectedDemo] ?? [], [selectedDemo]);
 
   return (
     <main className="min-h-screen bg-bg text-slate-100">
@@ -320,7 +326,7 @@ function App() {
                 value={symbolTarget}
                 onChange={(e) => setSymbolTarget(e.target.value.slice(0, 1))}
                 placeholder="a"
-                disabled={selectedDemo !== "symbol"}
+                disabled={selectedDemo !== "symbol" && selectedDemo !== "cparserTest"}
               />
             </label>
 
@@ -355,7 +361,10 @@ function App() {
             </ReactFlow>
           </div>
 
-          <CodePanel functionName={view.currentFn} code={currentCode} />
+          <div className="grid gap-4 grid-rows-[1fr_1fr]">
+            <CodePanel functionName={view.currentFn} code={currentCode} />
+            <HaskellSourcePanel items={haskellPanelItems} />
+          </div>
         </section>
 
         <section className="mt-4 rounded-xl border border-slate-700 bg-slate-900/60 p-4">
