@@ -7,7 +7,7 @@ import Data.Maybe (catMaybes)
 
 import Text.Parsec.String (Parser, parseFromFile)
 import Text.Parsec ((<|>),ParsecT)
-import qualified Control.Applicative as Applicative
+import Control.Applicative ((<*>),(<*))
 
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Token as Token
@@ -34,7 +34,7 @@ import qualified Text.Parsec.Expr as Expr
 data Expr 
     = Number String                    
     | Var String                       
-    | Assign String Expr               
+    | Assign Expr Expr               
     | Decl String Type (Maybe Expr)    
     | Function String Type [Parameter] Block  
     | Call String [Expr]               
@@ -95,13 +95,22 @@ parseSrc filepath =  readFile filepath >>= \content ->
 
 -- this is the same as Token.naturalOrFloat >>= \read -> return (Number (show read))
 parseNum :: ParsecT String () Identity Expr
-parseNum =  Number . show <$> Token.naturalOrFloat clexer
+parseNum =  Token.naturalOrFloat clexer >>= \read ->
+		case read of
+			Left n -> return $ Number (show n)
+			Right n -> return $ Number (show n)
 
 parseVar :: Parser Expr
-parseVar = Var . show <$> Token.identifier clexer
+parseVar = Var <$> Token.identifier clexer
+
+parseAssign :: Parser Expr
+parseAssign = Assign  <$> 
+	      parseVar <* Token.reservedOp
+	      clexer "=" <*>
+	      parseNum <* Token.semi clexer
 
 parseCExpr :: ParsecT String () Identity Expr
-parseCExpr = parseNum <|> parseVar
+parseCExpr =  parseAssign <|> parseNum
 
 parseCExprs :: ParsecT String () Identity [Expr]
 parseCExprs = Prim.many parseCExpr
