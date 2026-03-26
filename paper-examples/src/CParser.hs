@@ -18,19 +18,7 @@ import qualified Text.Parsec.Prim as Prim
 import qualified Text.Parsec.Pos as Pos
 import qualified Text.Parsec.Expr as Expr
 
--- we need to adapt our type to Parsec's one
-
--- First we need to provide src code that's the entry point
--- First we import the primitives
--- Then we parse strings
--- Then we parse Tokens
--- Then we parse expressions in C such as
--- structs, functions, if and else, for loops and comments!
--- Then we finish
-
--- this reads the src code for our toy c code
--- for the moment we'll hardcode the path
-
+-- algebraic data types
 data Expr 
     = Number String                    
     | Var String                       
@@ -80,57 +68,7 @@ data Op = Add | Sub | Mul | Div | Eq | Neq | Lt | Gt
 
 type Block = [Expr]
 
-parseFile :: IO String
-parseFile = do
-    result <- parseSrc "./src/toy.c"
-    return $ case result of
-        Left err -> "Error: " ++ show err
-        Right exprs -> 
-            if null exprs
-                then "No expressions found"
-                else show exprs
-
-parseSrc :: FilePath -> IO (Either Error.ParseError [Expr])
-parseSrc filepath =  readFile filepath >>= \content ->
-		    return $ Prim.parse (parseCExprs) "./src/toy.c" content
-
--- this is the same as Token.naturalOrFloat >>= \read -> return (Number (show read))
-parseNum :: ParsecT String () Identity Expr
-parseNum =  Token.naturalOrFloat clexer >>= \read ->
-		case read of
-			Left n -> return $ Number (show n)
-			Right n -> return $ Number (show n)
-
-parseVar :: Parser Expr
-parseVar = Var <$> Token.identifier clexer
-
-parseType :: Parser Type
-parseType = (IntType <$ Token.reserved clexer "int")
-	    <|> (FloatType <$ Token.reserved clexer "float")
-	    <|> (DoubleType <$ Token.reserved clexer "double")
-	    <|> (LongType <$ Token.reserved clexer "long")
-	    <|> (VoidType <$ Token.reserved clexer "void")
-
-parseDecl :: Parser Expr
-parseDecl = Decl
-            <$> parseType                
-            <*> parseVar                
-            <*> optional (Token.reservedOp clexer "=" *> parseCExpr)  -- init
-            <* Token.semi clexer
-
-parseAssign :: Parser Expr
-parseAssign = Assign
-              <$> parseVar
-              <* Token.reservedOp clexer "=" 
-	      <*> parseNum
-	      <* Token.semi clexer
-
-parseCExpr :: ParsecT String () Identity Expr
-parseCExpr =  parseAssign <|> parseNum <|> parseDecl
-
-parseCExprs :: ParsecT String () Identity [Expr]
-parseCExprs = Prim.many parseCExpr
-
+-- lexer
 ctokens :: Token.LanguageDef ()
 ctokens = Token.LanguageDef {
     Token.commentStart = "/*",
@@ -159,3 +97,60 @@ ctokens = Token.LanguageDef {
 clexer = Token.makeTokenParser ctokens
 
 
+-- primitive parsers
+-- this is the same as Token.naturalOrFloat >>= \read -> return (Number (show read))
+parseNum :: ParsecT String () Identity Expr
+parseNum =  Token.naturalOrFloat clexer >>= \read ->
+		case read of
+			Left n -> return $ Number (show n)
+			Right n -> return $ Number (show n)
+
+parseVar :: Parser Expr
+parseVar = Var <$> Token.identifier clexer
+
+parseType :: Parser Type
+parseType = (IntType <$ Token.reserved clexer "int")
+	    <|> (FloatType <$ Token.reserved clexer "float")
+	    <|> (DoubleType <$ Token.reserved clexer "double")
+	    <|> (LongType <$ Token.reserved clexer "long")
+	    <|> (VoidType <$ Token.reserved clexer "void")
+
+-- composite parsers
+parseDecl :: Parser Expr
+parseDecl = Decl
+            <$> parseType                
+            <*> parseVar                
+            <*> optional (Token.reservedOp clexer "=" *> parseCExpr)  -- init
+            <* Token.semi clexer
+
+parseAssign :: Parser Expr
+parseAssign = Assign
+              <$> parseVar
+              <* Token.reservedOp clexer "=" 
+	      <*> parseNum
+	      <* Token.semi clexer
+
+-- expression parser
+parseCExpr :: ParsecT String () Identity Expr
+parseCExpr =  parseAssign <|> parseNum <|> parseDecl
+
+-- parse all src code
+parseCExprs :: ParsecT String () Identity [Expr]
+parseCExprs = Prim.many parseCExpr
+
+
+-- parser entrypoint
+parseSrc :: FilePath -> IO (Either Error.ParseError [Expr])
+parseSrc filepath =  readFile filepath >>= \content ->
+		    return $ Prim.parse (parseCExprs) "./src/toy.c" content
+
+-- top level caller
+parseFile :: IO String
+parseFile = do
+    result <- parseSrc "./src/toy.c"
+    return $ case result of
+        Left err -> "Error: " ++ show err
+        Right exprs -> 
+            if null exprs
+                then "No expressions found"
+                else show exprs
