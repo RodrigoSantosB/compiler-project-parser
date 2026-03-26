@@ -1,15 +1,13 @@
-module CParser (readSrc) where
+module CParser (parseFile) where
 
 import Prelude (IO, FilePath, String, (>>=), return, print, putStrLn, snd, ($), (>>))
+import Prelude (readFile, Eq, Either, Bool(True, False), Show, Int, Maybe(Just,Nothing), (<$>), show, (.), Either (Right,Left), null, (++))
+import Data.Functor.Identity(Identity)
+import Data.Maybe (catMaybes)
 
-import Prelude (readFile, Eq, Either, Bool(True, False))
-
--- type Parser = (Parsec String () Identity), needs to also pass the return type
--- type ParsecT = Stream type(input), user state(optional), monad and then return type
--- the original signature Parser a a :: input output -> [([input],output)] would be
--- ParsecT input () Identity output 
 import Text.Parsec.String (Parser, parseFromFile)
-import Text.Parsec ((<|>))
+import Text.Parsec ((<|>),ParsecT)
+import qualified Control.Applicative as Applicative
 
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Token as Token
@@ -33,9 +31,74 @@ import qualified Text.Parsec.Expr as Expr
 -- this reads the src code for our toy c code
 -- for the moment we'll hardcode the path
 
-readSrc :: FilePath -> IO (Either Error.ParseError String)
-readSrc _ =  readFile "./src/toy.c" >>= \content ->
-		    return $ Prim.parse (Token.reserved clexer "int" >> return "int") "./src/toy.c" content
+data Expr 
+    = Number String                    
+    | Var String                       
+    | Assign String Expr               
+    | Decl String Type (Maybe Expr)    
+    | Function String Type [Parameter] Block  
+    | Call String [Expr]               
+    | BinaryOp Op Expr Expr            
+    | If Expr Expr (Maybe Expr)        
+    | Return (Maybe Expr)              
+    | Block [Expr]                     
+    -- Loops
+    | For (Maybe Expr) (Maybe Expr) (Maybe Expr) Block  -- init; condition; increment
+    | While Expr Block
+    | DoWhile Block Expr
+    
+    -- Switch
+    | Switch Expr [(Expr, Block)] (Maybe Block)  -- expression, cases, default
+    
+    -- Enums
+    | EnumDecl String [(String, Maybe Int)]  -- name, values
+    
+    -- Structs & Unions
+    | StructDecl String [(String, Type)]  -- name, fields
+    | UnionDecl String [(String, Type)]   -- name, fields
+    | StructAccess Expr String            -- struct_var.field
+    | StructPtrAccess Expr String         -- struct_ptr->field
+    | StructLit String [(String, Expr)]
+    deriving Show
+
+data Type 
+    = CharType
+    | IntType
+    | FloatType
+    | DoubleType
+    | VoidType
+    | PtrType Type        
+    | ArrayType Type Int   
+    deriving Show
+
+data Parameter = Parameter Type String
+    deriving Show
+
+data Op = Add | Sub | Mul | Div | Eq | Neq | Lt | Gt
+    deriving Show
+
+type Block = [Expr]
+
+parseFile :: IO String
+parseFile = do
+    result <- parseSrc "./src/toy.c"
+    return $ case result of
+        Left err -> "Error: " ++ show err
+        Right exprs -> 
+            if null exprs
+                then "No expressions found"
+                else show exprs
+
+parseSrc :: FilePath -> IO (Either Error.ParseError [Expr])
+parseSrc _ =  readFile "./src/toy.c" >>= \content ->
+		    return $ Prim.parse (catMaybes <$> Prim.many parseCExprs) "./src/toy.c" content
+
+parseNum :: ParsecT String () Identity (Maybe Expr)
+parseNum = Applicative.optional (Number . show <$> Token.naturalOrFloat clexer)
+
+-- this is the same as Token.naturalOrFloat >>= \read -> return (Number (show read))
+parseCExprs :: ParsecT String () Identity (Maybe Expr)
+parseCExprs = parseNum <|> return Nothing
 
 ctokens :: Token.LanguageDef ()
 ctokens = Token.LanguageDef {
@@ -63,20 +126,5 @@ ctokens = Token.LanguageDef {
     }
 
 clexer = Token.makeTokenParser ctokens
-
--- Now we need to read strings and deal with any problems that might appear
-
-
-
--- main :: IO ()
--- main = do
--- 	contents <- readSrc ""
--- 	let parsed = test 'a' contents
--- 	case parsed of
--- 		[] -> print "nothing to parse"
--- 		(first:_) -> print $ snd first
---
--- test:: Eq s => s -> Parser s s
--- test toparse = symbol toparse
 
 
