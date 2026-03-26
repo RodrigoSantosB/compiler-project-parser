@@ -91,14 +91,14 @@ parseFile = do
 
 parseSrc :: FilePath -> IO (Either Error.ParseError [Expr])
 parseSrc _ =  readFile "./src/toy.c" >>= \content ->
-		    return $ Prim.parse (catMaybes <$> Prim.many parseCExprs) "./src/toy.c" content
+		    return $ Prim.parse (parseCExprs) "./src/toy.c" content
 
-parseNum :: ParsecT String () Identity (Maybe Expr)
-parseNum = Applicative.optional (Number . show <$> Token.naturalOrFloat clexer)
+parseNum :: ParsecT String () Identity Expr
+parseNum =  Number . show <$> Token.naturalOrFloat clexer
 
 -- this is the same as Token.naturalOrFloat >>= \read -> return (Number (show read))
-parseCExprs :: ParsecT String () Identity (Maybe Expr)
-parseCExprs = parseNum <|> return Nothing
+parseCExprs :: ParsecT String () Identity [Expr]
+parseCExprs = Prim.many parseNum
 
 ctokens :: Token.LanguageDef ()
 ctokens = Token.LanguageDef {
