@@ -7,7 +7,6 @@ import Data.Maybe (catMaybes)
 
 import Text.Parsec.String (Parser, parseFromFile)
 import Text.Parsec ((<|>),ParsecT)
-import Control.Applicative ((<*>),(<*),(<$),(*>),optional)
 
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Token as Token
