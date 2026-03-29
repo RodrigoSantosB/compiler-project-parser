@@ -140,12 +140,12 @@ parseCExprs = Prim.many parseCExpr
 -- parser entrypoint
 parseSrc :: FilePath -> IO (Either Error.ParseError [Expr])
 parseSrc filepath =  readFile filepath >>= \content ->
-		    return $ Prim.parse (parseCExprs) "./src/toy.c" content
+		    return $ Prim.parse (parseCExprs) filepath content
 
 -- top level caller
 parseFile :: IO String
 parseFile = do
-    result <- parseSrc "./src/toy.c"
+    result <- parseSrc "./src/csources/toy.c"
     return $ case result of
         Left err -> "Error: " ++ show err
         Right exprs -> 
