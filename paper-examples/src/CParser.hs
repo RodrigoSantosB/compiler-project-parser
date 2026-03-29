@@ -97,8 +97,6 @@ ctokens = Token.LanguageDef {
 clexer = Token.makeTokenParser ctokens
 
 
--- primitive parsers
--- this is the same as Token.naturalOrFloat >>= \read -> return (Number (show read))
 parseNum :: ParsecT String () Identity Expr
 parseNum =  Token.naturalOrFloat clexer >>= \read ->
 		case read of
