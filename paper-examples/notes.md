@@ -124,4 +124,26 @@ Version 10: Complete Program
 
 ## Scratch
 
+- Slides should touch these topics
+
+-> Monadic thinking (do vs >>= notation)
+
+    (>>=, >>, return)
+
+-> What is ParsecT
+
+-> imports in haskell
+
+-> Understanding Hoogle
+
+-> parsec structure (LanguagDef -> parsers helpers (Token,String, Prim, Pos, Expr, Error, Combinator, Char)
+
+-> v1 to v10 (incremental parsing building) (1 slide per version)
+    - explain combinators as they appear
+    - explain design desicions as they appear
+
+-> summary 
+
+probably 15 slides is enough
+
 ---
