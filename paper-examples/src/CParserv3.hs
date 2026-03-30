@@ -7,7 +7,6 @@ import Data.Maybe (catMaybes)
 
 import Text.Parsec.String (Parser, parseFromFile)
 import Text.Parsec ((<|>),ParsecT)
-import Control.Applicative ((<*>),(<*),(<$),(*>),optional)
 
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Token as Token
@@ -90,7 +89,7 @@ parseAssign = parseVar >>= \var ->
 
 -- expression parser
 parseCExpr :: ParsecT String () Identity Expr
-parseCExpr = Combinator.choice [parseNum, parseVar]
+parseCExpr = Combinator.choice [parseAssign,parseVar, parseNum]
 
 -- parse all src code
 parseCExprs :: ParsecT String () Identity [Expr]
@@ -104,7 +103,7 @@ parseSrc filepath =  readFile filepath >>= \content ->
 -- top level caller
 parseFile :: IO String
 parseFile = do
-    result <- parseSrc "./src/csources/toy2.c"
+    result <- parseSrc "./src/csources/toy3.c"
     return $ case result of
         Left err -> "Error: " ++ show err
         Right exprs -> 
