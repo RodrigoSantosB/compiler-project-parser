@@ -82,12 +82,12 @@ parseVar :: Parser Expr
 parseVar = Prim.parsecMap Var (Token.identifier clexer)
 
 parseType :: Parser Type
-parseType = 
-	    (Token.reserved clexer "int" >> return IntType)
-	    <|> (Token.reserved clexer "float" >> return FloatType) 
-	    <|> (Token.reserved clexer "double" >> return DoubleType)
-	    <|> (Token.reserved clexer "long" >> return LongType)
-	    <|> (Token.reserved clexer "void" >> return VoidType)
+parseType = Prim.try
+		    (Token.reserved clexer "int" >> return IntType)
+		    <|> (Token.reserved clexer "float" >> return FloatType) 
+		    <|> (Token.reserved clexer "double" >> return DoubleType)
+		    <|> (Token.reserved clexer "long" >> return LongType)
+		    <|> (Token.reserved clexer "void" >> return VoidType)
 
 parseAssign :: Parser Expr
 parseAssign = Assign 
@@ -131,10 +131,22 @@ parseFunc = Function
 	    <*>
 	    (Prim.many parseBlock <* Token.semi clexer)
 
+parseCall :: Parser Expr
+parseCall = Call
+	    <$>
+	    (parseIdentifier)
+	    <*>
+	    (Char.char '(' *>
+	    Prim.many parseCExpr	
+	    <* Char.char ')')	
+	    <* Combinator.optionMaybe (Token.semi clexer)
+
 -- expression parser
 parseCExpr :: ParsecT String () Identity Expr
 parseCExpr =
 	 Prim.try parseFunc
+	     <|>
+	     parseCall
 	     <|>
 	     parseBlock
 	     <|>
