@@ -99,7 +99,13 @@ parseDecl = Decl
 
 -- expression parser
 parseCExpr :: ParsecT String () Identity Expr
-parseCExpr = Combinator.choice [parseAssign, parseDecl ,parseVar, parseNum]
+parseCExpr = parseAssign 
+	     <|> 
+	     parseDecl 
+	     <|> 
+	     parseVar 
+	     <|> 
+	     parseNum
 
 -- parse all src code
 parseCExprs :: ParsecT String () Identity [Expr]
