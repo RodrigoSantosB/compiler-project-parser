@@ -77,27 +77,16 @@ parseType :: Parser Type
 parseType = 
 	    (Token.reserved clexer "int" >> return IntType)
 	    <|> (Token.reserved clexer "float" >> return FloatType) 
-	    <|> (Token.reserved clexer "double" >> return Double
-	    <|> (Token.reserved clexer "long" >> return LongType
-	    <|> (Token.reserved clexer "void" >> return VoidType
-	
-
--- composite parsers
--- parseDecl :: Parser Expr
--- parseDecl = Decl
---             <$> parseType                
---             <*> parseVar                
---             <*> optional (Token.reservedOp clexer "=" *> parseCExpr)  -- init
---             <* Token.semi clexer
+	    <|> (Token.reserved clexer "double" >> return DoubleType)
+	    <|> (Token.reserved clexer "long" >> return LongType)
+	    <|> (Token.reserved clexer "void" >> return VoidType)
 
 parseAssign :: Parser Expr
-parseAssign = Assign
-              <$> parseVar
-              <* Token.reservedOp clexer "=" 
-	      <*> parseNum
-	      <* Token.semi clexer
-
-
+parseAssign = parseVar >>= \var ->
+              Token.reservedOp clexer "=" >> 
+	      parseNum >>= \num ->
+	      Token.semi clexer >> 
+	      return (Assign var num)
 
 -- expression parser
 parseCExpr :: ParsecT String () Identity Expr
