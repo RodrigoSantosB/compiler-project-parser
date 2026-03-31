@@ -24,7 +24,15 @@ data Expr
     | Var String                       
     | Assign Expr Expr               
     | Call String [Expr]               
+    | Function Type String [Parameter] Block
     deriving Show
+
+data Stmt
+     =  Decl Type Expr (Maybe Expr)    
+     | ExprStmt Expr
+     | Return (maybe Expr)
+     | Block [Stmt]
+     deriving Show
 
 data Parameter = Parameter Type String
     deriving Show
@@ -92,8 +100,19 @@ parseAssign = Assign
 	     <*>
 	     (parseNum <* Token.semi clexer)
 
+parseDecl :: Parser Stmt
+parseDecl = Decl
+            <$> 
+	    (parseType)                
+            <*> 
+	    (parseVar)                
+            <*> 
+	    (Combinator.optionMaybe (Token.reservedOp clexer "=" *> parseCExpr) <* Token.semi clexer)
+
 parseIdentifier :: Parser String
 parseIdentifier = Token.identifier clexer
+
+
 
 parseParameter :: Parser Parameter
 parseParameter = Parameter
@@ -101,6 +120,16 @@ parseParameter = Parameter
 		  (parseType)
 		  <*>
 		  (Token.identifier clexer)
+	
+parseFunc :: Parser Expr
+parseFunc = Function
+	    <$>
+	    (parseType)
+	    <*>
+	    (parseIdentifier)
+	    <*>
+	    (Char.char '(' *> many parseParameter <* Char.char ')')
+
 
 parseCall :: Parser Expr
 parseCall = Call
@@ -114,23 +143,31 @@ parseCall = Call
 
 -- expression parser
 parseCExpr :: ParsecT String () Identity Expr
-parseCExpr =
-	 Prim.try parseCall
+parseCExpr = parseAssign 
+	     <|> 
+	     parseVar 
+	     <|> 
+	     parseNum
+
+parseCExprStmt :: Parser Stmt
+parseCExprStmt = ExprStmt
+		 <$>
+		 parseCExpr <* Token.semi clexer 
+
+-- statement parser
+parseCStmt :: ParsecT String () Identity Stmt
+parseCStmt = Prim.try parseDecl
 	     <|>
-	 Prim.try     parseAssign 
-	     <|> 
-	 Prim.try    parseVar 
-	     <|> 
-	 Prim.try    parseNum
+	     Prim.try parseCExprStmt 
 
 -- parse all src code
-parseCExprs :: ParsecT String () Identity [Expr]
-parseCExprs = Prim.many parseCExpr
+parseTopLevel :: ParsecT String () Identity [Stmt]
+parseTopLevel = Prim.many  parseCStmt
 
 -- parser entrypoint
-parseSrc :: FilePath -> IO (Either Error.ParseError [Expr])
+parseSrc :: FilePath -> IO (Either Error.ParseError [Stmt])
 parseSrc filepath =  readFile filepath >>= \content ->
-		    return $ Prim.parse (parseCExprs) filepath content
+		    return $ Prim.parse (parseTopLevel) filepath content
 
 -- top level caller
 parseFile :: IO String
