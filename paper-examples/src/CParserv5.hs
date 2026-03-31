@@ -146,17 +146,17 @@ parseCExpr :: ParsecT String () Identity Expr
 parseCExpr =
 	 Prim.try parseFunc
 	     <|>
-	     parseCall
+	 Prim.try parseCall
 	     <|>
-	     parseBlock
+	 Prim.try    parseBlock
 	     <|>
-	     parseAssign 
+	 Prim.try     parseAssign 
 	     <|> 
-	     parseDecl 
+	 Prim.try    parseDecl 
 	     <|> 
-	     parseVar 
+	 Prim.try    parseVar 
 	     <|> 
-	     parseNum
+	 Prim.try    parseNum
 
 -- parse all src code
 parseCExprs :: ParsecT String () Identity [Expr]
