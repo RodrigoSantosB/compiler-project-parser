@@ -37,7 +37,7 @@ export type DemoRun = {
   outcomes: Outcome[];
 };
 
-export type DemoKind = "parens" | "symbol" | "manyA" | "cparserTest" | "parserSomeFunc" | "cparserSomeFunc" | "expr";
+export type DemoKind = "parens" | "symbol" | "manyA" | "cparserParseFile" | "parserSomeFunc" | "expr";
 
 export type DemoOption = {
   id: DemoKind;
@@ -70,23 +70,16 @@ export const demoOptions: DemoOption[] = [
     placeholder: "Ex: aaab"
   },
   {
-    id: "cparserTest",
-    label: "CParser.test x",
-    description: "Funcao test de CParser: test toparse = symbol toparse",
-    defaultInput: "abc",
-    placeholder: "Ex: abc"
+    id: "cparserParseFile",
+    label: "CParser.parseFile",
+    description: "Fluxo parseSrc/parseCExprs com parseAssign | parseNum | parseDecl",
+    defaultInput: "a = 2;\nint a;",
+    placeholder: "Ex: a = 2;\\nint a;"
   },
   {
     id: "parserSomeFunc",
     label: "parser.hs :: someFunc",
     description: "Executa someFunc do modulo parser.hs (efeito IO demonstrativo)",
-    defaultInput: "",
-    placeholder: "Entrada opcional"
-  },
-  {
-    id: "cparserSomeFunc",
-    label: "CParser.hs :: someFunc",
-    description: "Executa someFunc do modulo CParser.hs (efeito IO demonstrativo)",
     defaultInput: "",
     placeholder: "Entrada opcional"
   },
@@ -127,23 +120,21 @@ export const haskellSourcesByDemo: Record<DemoKind, HaskellSourceRef[]> = {
       code: "many p = some p <|> succeed []"
     }
   ],
-  cparserTest: [
+  cparserParseFile: [
     {
       file: "paper-examples/src/CParser.hs",
-      functionName: "test",
-      code: "test toparse = symbol toparse"
+      functionName: "parseFile",
+      code: "parseFile = parseSrc \"./src/toy.c\" >>= \\result -> case result of Left err -> ... ; Right exprs -> show exprs"
+    },
+    {
+      file: "paper-examples/src/CParser.hs",
+      functionName: "parseCExpr",
+      code: "parseCExpr = parseAssign <|> parseNum <|> parseDecl"
     }
   ],
   parserSomeFunc: [
     {
       file: "paper-examples/src/parser.hs",
-      functionName: "someFunc",
-      code: "someFunc = putStrLn \"someFunc\""
-    }
-  ],
-  cparserSomeFunc: [
-    {
-      file: "paper-examples/src/CParser.hs",
       functionName: "someFunc",
       code: "someFunc = putStrLn \"someFunc\""
     }
@@ -362,7 +353,15 @@ const traceGroup = (
 
 export const codeByFunction: Record<string, string> = {
   symbol: `symbol a (x:xs) = if a == x then [(xs, x)] else []`,
-  test: `test toparse = symbol toparse`,
+  parseFile: `parseFile = parseSrc "./src/toy.c" >>= \result -> case result of Left err -> "Error: " ++ show err; Right exprs -> ...`,
+  parseSrc: `parseSrc filepath = readFile filepath >>= \content -> return $ parse parseCExprs "./src/toy.c" content`,
+  parseCExprs: `parseCExprs = many parseCExpr`,
+  parseCExpr: `parseCExpr = parseAssign <|> parseNum <|> parseDecl`,
+  parseAssign: `parseAssign = Assign <$> parseVar <* "=" <*> parseNum <* semi`,
+  parseDecl: `parseDecl = Decl <$> parseType <*> parseVar <*> optional ("=" *> parseCExpr) <* semi`,
+  parseNum: `parseNum = naturalOrFloat >>= \n -> return (Number (show n))`,
+  parseVar: `parseVar = Var <$> identifier`,
+  parseType: `parseType = int <|> float <|> double <|> long <|> void`,
   someFunc: `someFunc = putStrLn "someFunc"`,
   many: `many p = (some p) <|> succeed []`,
   failP: `failP xs = []`,
@@ -828,6 +827,196 @@ const runCParserTestDemo = (rawInput: string, targetSymbol: string): DemoRun => 
   return { events: state.events, outcomes };
 };
 
+type CExprLike =
+  | { tag: "Assign"; variable: string; value: string }
+  | { tag: "Decl"; ctype: string; variable: string; init?: CExprLike | { tag: "Number"; value: string } }
+  | { tag: "Number"; value: string };
+
+const formatCExprLike = (expr: CExprLike): string => {
+  if (expr.tag === "Assign") return `Assign (Var "${expr.variable}") (Number "${expr.value}")`;
+  if (expr.tag === "Number") return `Number "${expr.value}"`;
+  const init = expr.init ? ` (Just ${formatCExprLike(expr.init)})` : " Nothing";
+  return `Decl ${expr.ctype} (Var "${expr.variable}")${init}`;
+};
+
+const parseSingleCExpr = (
+  statement: string,
+  state: TraceState,
+  parentId: string
+): { ok: boolean; parsed?: CExprLike } => {
+  focus(state, "parseCExpr");
+  const choice = addNode(state, {
+    parentId,
+    label: "parseCExpr (<|>)",
+    kind: "nonterminal",
+    remaining: statement
+  });
+
+  focus(state, "parseAssign");
+  const assignNode = addNode(state, {
+    parentId: choice,
+    label: "parseAssign",
+    kind: "nonterminal",
+    remaining: statement
+  });
+  const assignMatch = statement.match(/^\s*([A-Za-z_]\w*)\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*$/);
+  if (assignMatch) {
+    const [, variable, value] = assignMatch;
+    state.events.push({ type: "success", id: assignNode, remaining: "" });
+    state.events.push({ type: "success", id: choice, remaining: "" });
+    return { ok: true, parsed: { tag: "Assign", variable, value } };
+  }
+  focus(state, "failP");
+  const failAssign = addNode(state, {
+    parentId: choice,
+    label: "fail []",
+    kind: "nonterminal",
+    remaining: statement
+  });
+  state.events.push({ type: "failure", id: assignNode });
+  state.events.push({ type: "ghost", id: assignNode });
+  state.events.push({ type: "failure", id: failAssign });
+  state.events.push({ type: "ghost", id: failAssign });
+
+  focus(state, "parseNum");
+  const numNode = addNode(state, {
+    parentId: choice,
+    label: "parseNum",
+    kind: "nonterminal",
+    remaining: statement
+  });
+  const numMatch = statement.match(/^\s*([0-9]+(?:\.[0-9]+)?)\s*$/);
+  if (numMatch) {
+    state.events.push({ type: "success", id: numNode, remaining: "" });
+    state.events.push({ type: "success", id: choice, remaining: "" });
+    return { ok: true, parsed: { tag: "Number", value: numMatch[1] } };
+  }
+  focus(state, "failP");
+  const failNum = addNode(state, {
+    parentId: choice,
+    label: "fail []",
+    kind: "nonterminal",
+    remaining: statement
+  });
+  state.events.push({ type: "failure", id: numNode });
+  state.events.push({ type: "ghost", id: numNode });
+  state.events.push({ type: "failure", id: failNum });
+  state.events.push({ type: "ghost", id: failNum });
+
+  focus(state, "parseDecl");
+  const declNode = addNode(state, {
+    parentId: choice,
+    label: "parseDecl",
+    kind: "nonterminal",
+    remaining: statement
+  });
+  const declMatch = statement.match(
+    /^\s*(int|float|double|long|void)\s+([A-Za-z_]\w*)\s*(?:=\s*(.+))?\s*$/
+  );
+  if (declMatch) {
+    const [, ctype, variable, rawInit] = declMatch;
+    let init: CExprLike | { tag: "Number"; value: string } | undefined;
+    if (rawInit && rawInit.trim().length > 0) {
+      const initStmt = rawInit.trim();
+      const initNum = initStmt.match(/^([0-9]+(?:\.[0-9]+)?)$/);
+      if (initNum) {
+        init = { tag: "Number", value: initNum[1] };
+      } else {
+        const nested = parseSingleCExpr(initStmt, state, declNode);
+        if (nested.ok && nested.parsed) init = nested.parsed;
+      }
+    }
+    state.events.push({ type: "success", id: declNode, remaining: "" });
+    state.events.push({ type: "success", id: choice, remaining: "" });
+    return { ok: true, parsed: { tag: "Decl", ctype, variable, init } };
+  }
+
+  focus(state, "failP");
+  const failDecl = addNode(state, {
+    parentId: choice,
+    label: "fail []",
+    kind: "nonterminal",
+    remaining: statement
+  });
+  state.events.push({ type: "failure", id: declNode });
+  state.events.push({ type: "ghost", id: declNode });
+  state.events.push({ type: "failure", id: failDecl });
+  state.events.push({ type: "ghost", id: failDecl });
+  state.events.push({ type: "failure", id: choice });
+  return { ok: false };
+};
+
+const runCParserParseFileDemo = (rawInput: string): DemoRun => {
+  const input = rawInput;
+  const statements = input
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  const state: TraceState = { events: [], nodeCounter: 0 };
+  focus(state, "parseFile");
+  const rootId = addNode(state, {
+    label: "parseFile (root)",
+    kind: "nonterminal",
+    remaining: input
+  });
+
+  focus(state, "parseSrc");
+  const srcNode = addNode(state, {
+    parentId: rootId,
+    label: "parseSrc",
+    kind: "nonterminal",
+    remaining: input
+  });
+  state.events.push({ type: "success", id: srcNode, remaining: input });
+
+  focus(state, "parseCExprs");
+  const exprsNode = addNode(state, {
+    parentId: rootId,
+    label: "parseCExprs (many parseCExpr)",
+    kind: "nonterminal",
+    remaining: input
+  });
+
+  const parsed: CExprLike[] = [];
+  let allOk = true;
+  for (const stmt of statements) {
+    const stmtNode = addNode(state, {
+      parentId: exprsNode,
+      label: `stmt "${stmt};"`,
+      kind: "nonterminal",
+      remaining: `${stmt};`
+    });
+    const res = parseSingleCExpr(stmt, state, stmtNode);
+    if (res.ok && res.parsed) {
+      parsed.push(res.parsed);
+      state.events.push({ type: "success", id: stmtNode, remaining: "" });
+    } else {
+      state.events.push({ type: "failure", id: stmtNode });
+      allOk = false;
+      break;
+    }
+  }
+
+  if (allOk) {
+    state.events.push({ type: "success", id: exprsNode, remaining: "" });
+    state.events.push({ type: "success", id: rootId, remaining: "" });
+    state.events.push({ type: "complete", id: rootId });
+  } else {
+    state.events.push({ type: "failure", id: exprsNode });
+    state.events.push({ type: "failure", id: rootId });
+  }
+
+  return {
+    events: state.events,
+    outcomes: parsed.map((expr) => ({
+      remaining: "",
+      tree: [{ label: formatCExprLike(expr), children: [] }],
+      isComplete: true
+    }))
+  };
+};
+
 const runSomeFuncDemo = (label: string, rawInput: string): DemoRun => {
   const input = rawInput;
   const state: TraceState = { events: [], nodeCounter: 0 };
@@ -878,14 +1067,11 @@ export const runDemoWithArgs = (kind: DemoKind, input: string, args?: { symbolTa
   if (kind === "symbol") {
     return runSymbolDemo(input, args?.symbolTarget ?? "a");
   }
-  if (kind === "cparserTest") {
-    return runCParserTestDemo(input, args?.symbolTarget ?? "a");
+  if (kind === "cparserParseFile") {
+    return runCParserParseFileDemo(input);
   }
   if (kind === "parserSomeFunc") {
     return runSomeFuncDemo("parser.someFunc", input);
-  }
-  if (kind === "cparserSomeFunc") {
-    return runSomeFuncDemo("CParser.someFunc", input);
   }
   if (kind === "expr") {
     return runExprDemo(input);

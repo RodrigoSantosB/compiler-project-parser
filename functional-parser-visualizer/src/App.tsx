@@ -26,8 +26,8 @@ const INITIAL_DEMO: DemoKind = "parens";
 
 const initialFnForDemo = (demo: DemoKind): string => {
   if (demo === "symbol") return "symbol";
-  if (demo === "cparserTest") return "test";
-  if (demo === "parserSomeFunc" || demo === "cparserSomeFunc") return "someFunc";
+  if (demo === "cparserParseFile") return "parseFile";
+  if (demo === "parserSomeFunc") return "someFunc";
   if (demo === "expr") return "expr";
   if (demo === "manyA") return "many";
   return "parens";
@@ -326,7 +326,7 @@ function App() {
                 value={symbolTarget}
                 onChange={(e) => setSymbolTarget(e.target.value.slice(0, 1))}
                 placeholder="a"
-                disabled={selectedDemo !== "symbol" && selectedDemo !== "cparserTest"}
+                disabled={selectedDemo !== "symbol"}
               />
             </label>
 
