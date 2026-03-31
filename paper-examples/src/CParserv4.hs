@@ -23,8 +23,12 @@ data Expr
     = Number String                    
     | Var String                       
     | Assign Expr Expr               
-    | Decl Type Expr (Maybe Expr)    
     deriving Show
+
+data Stmt
+     =  Decl Type Expr (Maybe Expr)    
+     | ExprStmt Expr
+     deriving Show
 
 data Type 
     = CharType
@@ -86,9 +90,9 @@ parseAssign = Assign
 	     <$>
 	     (parseVar <* Token.reservedOp clexer "=") 
 	     <*>
-	     (parseNum <* Token.semi clexer)
+	     (parseNum)
 
-parseDecl :: Parser Expr
+parseDecl :: Parser Stmt
 parseDecl = Decl
             <$> 
 	    (parseType)                
@@ -101,20 +105,30 @@ parseDecl = Decl
 parseCExpr :: ParsecT String () Identity Expr
 parseCExpr = parseAssign 
 	     <|> 
-	     parseDecl 
-	     <|> 
 	     parseVar 
 	     <|> 
 	     parseNum
 
+parseCExprStmt :: Parser Stmt
+parseCExprStmt = ExprStmt
+		 <$>
+		 parseCExpr <* Token.semi clexer 
+
+-- statement parser
+parseCStmt :: ParsecT String () Identity Stmt
+parseCStmt = Prim.try parseDecl
+	     <|>
+	     Prim.try parseCExprStmt
+
+
 -- parse all src code
-parseCExprs :: ParsecT String () Identity [Expr]
-parseCExprs = Prim.many parseCExpr
+parseTopLevel :: ParsecT String () Identity [Stmt]
+parseTopLevel = Prim.many  parseCStmt
 
 -- parser entrypoint
-parseSrc :: FilePath -> IO (Either Error.ParseError [Expr])
+parseSrc :: FilePath -> IO (Either Error.ParseError [Stmt])
 parseSrc filepath =  readFile filepath >>= \content ->
-		    return $ Prim.parse (parseCExprs) filepath content
+		    return $ Prim.parse (parseTopLevel) filepath content
 
 -- top level caller
 parseFile :: IO String

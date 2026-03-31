@@ -23,11 +23,7 @@ data Expr
     = Number String                    
     | Var String                       
     | Assign Expr Expr               
-    | Decl Type Expr (Maybe Expr)    
-    | Function Type String [Parameter] Block  
     | Call String [Expr]               
-    | Return (Maybe Expr)              
-    | Block [Expr]
     deriving Show
 
 data Parameter = Parameter Type String
@@ -96,15 +92,6 @@ parseAssign = Assign
 	     <*>
 	     (parseNum <* Token.semi clexer)
 
-parseDecl :: Parser Expr
-parseDecl = Decl
-            <$> 
-	    (parseType)                
-            <*> 
-	    (parseVar)                
-            <*> 
-	    (Combinator.optionMaybe (Token.reservedOp clexer "=" *> parseCExpr) <* Token.semi clexer)
-
 parseIdentifier :: Parser String
 parseIdentifier = Token.identifier clexer
 
@@ -114,22 +101,6 @@ parseParameter = Parameter
 		  (parseType)
 		  <*>
 		  (Token.identifier clexer)
-
-parseBlock :: Parser Expr
-parseBlock = Block
-	     <$>
-	     (Char.char '{' *> Prim.many parseCExpr <* Char.char '}' )
-
-parseFunc :: Parser Expr
-parseFunc = Function
-	    <$>
-	    (parseType)
-	    <*>
-	    (parseIdentifier <* Char.char '(')
-	    <*>
-	    (Prim.many parseParameter <* Char.char ')')
-	    <*>
-	    (Prim.many parseBlock <* Token.semi clexer)
 
 parseCall :: Parser Expr
 parseCall = Call
@@ -144,15 +115,9 @@ parseCall = Call
 -- expression parser
 parseCExpr :: ParsecT String () Identity Expr
 parseCExpr =
-	 Prim.try parseFunc
-	     <|>
 	 Prim.try parseCall
 	     <|>
-	 Prim.try    parseBlock
-	     <|>
 	 Prim.try     parseAssign 
-	     <|> 
-	 Prim.try    parseDecl 
 	     <|> 
 	 Prim.try    parseVar 
 	     <|> 
