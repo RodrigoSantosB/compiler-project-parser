@@ -21,7 +21,8 @@ import qualified Text.Parsec.Expr as Expr
 -- algebraic data types
 data TopLevel
     = VarDecl Type String (Maybe Expr)
-    | FuncDecl Type String [Parameter] Block
+    | FuncDecl Type String [Parameter] 
+    | FuncDef Type String [Parameter] Block
     deriving Show
 
 data Expr 
@@ -113,6 +114,7 @@ parseDecl = Decl
 	    (parseIdentifier)                
             <*> 
 	    (Combinator.optionMaybe (Token.reservedOp clexer "=" *> parseCExpr))
+	    <?> "expected a declaration inside a function"
 
 parseIdentifier :: Parser String
 parseIdentifier = Token.identifier clexer
@@ -123,6 +125,7 @@ parseParameter = Parameter
 		  (parseType)
 		  <*>
 		  (Token.identifier clexer)
+		  <?> "expected a parameter"
 
 parseCall :: Parser Expr
 parseCall = Call
@@ -133,6 +136,7 @@ parseCall = Call
 	    Prim.many parseCExpr	
 	    <* Char.char ')')	
 	    <* Combinator.optionMaybe (Token.semi clexer)
+	    <?> "expected a function call"
 
 -- expression parser
 parseCExpr :: ParsecT String () Identity Expr
@@ -148,6 +152,7 @@ parseCExprStmt :: Parser Stmt
 parseCExprStmt = ExprStmt
 		 <$>
 		 parseCExpr <* Token.semi clexer 
+		 <?> "expected a expression"
 
 -- statement parser
 parseCStmt :: ParsecT String () Identity Stmt
@@ -161,28 +166,43 @@ parseBlock :: Parser Stmt
 parseBlock = BlockStmt
 	     <$>
 	     (Char.char '{' *> Prim.many parseCStmt <* Char.char '}')
+	     <?> "expected a stamement"
 
-parseFunc :: Parser TopLevel
-parseFunc = FuncDecl
+
+parseFuncDecl :: Parser TopLevel
+parseFuncDecl = FuncDecl
 	    <$>
 	    (parseType)
 	    <*>
 	    (parseIdentifier)
 	    <*>
 	    (Char.char '(' *> Prim.many parseParameter <* Char.char ')')
-	    <*>
-	    (parseBlock)
+	    <?> "top level func declarations"
+	
+parseFuncDef :: Parser TopLevel
+parseFuncDef = FuncDef
+		<$>
+		(parseType)
+		<*>
+		(parseIdentifier)
+		<*>
+	        (Char.char '(' *> Prim.many parseParameter <* Char.char ')')
+		<*>
+		(Char.char '{' *> Prim.many parseCStmt <* Char.char '}')
+		<?> "top level func definitons"
 
-parseTopVar :: Parser TopLevel
-parseTopVar = VarDecl
+parseTopVarDecl :: Parser TopLevel
+parseTopVarDecl = VarDecl
 	<$> parseType
 	<*> parseIdentifier
 	<*> Combinator.optionMaybe (Token.reservedOp clexer "=" *> parseCExpr)
+	<?> "top-level var declaration"
 
 parseTopDecl :: Parser TopLevel
-parseTopDecl = (Prim.try parseTopVar <* Token.semi clexer)
-		<|> (Prim.try parseFunc <* Token.semi clexer)
-		<?> "top-level declaration"
+parseTopDecl = (Prim.try parseTopVarDecl <* Token.semi clexer)
+		<|> (Prim.try parseFuncDecl <* Token.semi clexer)
+		<|> (Prim.try parseFuncDef <* Token.semi clexer)
+		<?> "top-level declarations"
 
 -- parse all src code
 parseTopLevel :: ParsecT String () Identity [TopLevel]
